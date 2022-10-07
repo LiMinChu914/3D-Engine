@@ -6,8 +6,6 @@ use WebGL write vertex and fragment shader and make 3d objects with texture.
 ## 開發環境
 JavaScript
 
-GLSL
-
 ## 輔助工具
 - glMatrix
 - OpenGL
