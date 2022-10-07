@@ -9,6 +9,5 @@ JavaScript
 GLSL
 
 ## 輔助工具
--[glMatrix]
-
--[OpenGL]
+- glMatrix
+- OpenGL
