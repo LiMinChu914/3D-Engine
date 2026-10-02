@@ -1,101 +1,77 @@
-export function getFileContent(path) {
-    let str = null;
-    let rawFile = new XMLHttpRequest();
-    rawFile.open("GET", path, false);
-    rawFile.onreadystatechange = function () {
-        if (rawFile.readyState === 4) {
-            if (rawFile.status === 200 || rawFile.status == 0) {
-                str = rawFile.responseText;
+// [MODIFIED FROM ORIGINAL] Replaced blocking XMLHttpRequest with an asynchronous fetch pipeline.
+import { logger } from "./core/Logger.js";
+
+const log = logger.child("ObjLoader");
+
+/** Parse the subset of Wavefront OBJ needed by the engine. */
+export function parseObj(source) {
+    const positions = [];
+    const texcoords = [];
+    const sourceNormals = [];
+    const vertexMap = new Map();
+    const packed = [];
+    const indices = [];
+
+    const resolveIndex = (value, count) => {
+        const index = Number.parseInt(value, 10);
+        return index < 0 ? count + index : index - 1;
+    };
+
+    const addVertex = (reference) => {
+        if (vertexMap.has(reference)) return vertexMap.get(reference);
+        const [positionRef, uvRef, normalRef] = reference.split("/");
+        const positionIndex = resolveIndex(positionRef, positions.length / 3) * 3;
+        const uvIndex = uvRef ? resolveIndex(uvRef, texcoords.length / 2) * 2 : -1;
+        const normalIndex = normalRef ? resolveIndex(normalRef, sourceNormals.length / 3) * 3 : -1;
+        const index = packed.length;
+        packed.push({ positionIndex, uvIndex, normalIndex });
+        vertexMap.set(reference, index);
+        return index;
+    };
+
+    for (const rawLine of source.split(/\r?\n/)) {
+        const line = rawLine.split("#", 1)[0].trim();
+        if (!line) continue;
+        const [keyword, ...values] = line.split(/\s+/);
+        if (keyword === "v") positions.push(...values.slice(0, 3).map(Number));
+        else if (keyword === "vt") texcoords.push(...values.slice(0, 2).map(Number));
+        else if (keyword === "vn") sourceNormals.push(...values.slice(0, 3).map(Number));
+        else if (keyword === "f") {
+            const face = values.map(addVertex);
+            for (let i = 1; i < face.length - 1; i += 1) {
+                indices.push(face[0], face[i], face[i + 1]);
             }
         }
-    };
-    rawFile.send(null);
-    return str;
-}
+    }
 
-/**
- * @param {String} str 
- */
-export function* readByLine(str) {
-    let loc = 0;
-    while (loc < str.length) {
-        const temp = str.indexOf("\n", loc);
-        if (temp == -1)
-            return;
-        const len = temp - loc;
-        if (loc != temp)
-            yield str.substring(loc, loc + len);
-        loc = temp + 1;
-    }
-}
+    const vertices = new Float32Array(packed.length * 3);
+    const uvs = new Float32Array(packed.length * 2);
+    const normals = new Float32Array(packed.length * 3);
+    packed.forEach(({ positionIndex, uvIndex, normalIndex }, index) => {
+        vertices.set(positions.slice(positionIndex, positionIndex + 3), index * 3);
+        if (uvIndex >= 0) uvs.set(texcoords.slice(uvIndex, uvIndex + 2), index * 2);
+        if (normalIndex >= 0) normals.set(sourceNormals.slice(normalIndex, normalIndex + 3), index * 3);
+    });
 
-/**
- * @param {String} str 
- */
-export function parseObj(str) {
-    const v = [];
-    const vt = [];
-    const vn = [];
-    const indices_map = new Map();
-    let vertex_map_size = 0;
-    const indices = [];
-    for (let it = readByLine(str), line = it.next(); !line.done; line = it.next()) {
-        const line_sp = line.value.split(" ");
-        switch (line_sp[0]) {
-            case "v":
-                v.push(parseFloat(line_sp[1]), parseFloat(line_sp[2]), parseFloat(line_sp[3]));
-                break;
-            case "vt":
-                vt.push(parseFloat(line_sp[1]), parseFloat(line_sp[2]));
-                break;
-            case "vn":
-                vn.push(parseFloat(line_sp[1]), parseFloat(line_sp[2]), parseFloat(line_sp[3]));
-                break;
-            case "f":
-                for (let i = 1; i < line_sp.length; i++) {
-                    if (indices_map.has(line_sp[i]))
-                        continue;
-                    indices_map.set(line_sp[i], vertex_map_size++);
-                }
-                for (let i = 2; i < line_sp.length - 1; i++)
-                    indices.push(line_sp[1], line_sp[i], line_sp[i + 1]);
-                break;
-        }
-    }
-    for (let i = 0; i < indices.length; i++) {
-        indices[i] = indices_map.get(indices[i]);
-    }
-    const vertices = new Float32Array(vertex_map_size * 3);
-    const uvs = new Float32Array(vertex_map_size * 2);
-    const normals = new Float32Array(vertex_map_size * 3);
-    for (const [key, value] of indices_map) {
-        const sp = key.split("/");
-        const vi = 3 * (parseInt(sp[0]) - 1);
-        const uvi = 2 * (parseInt(sp[1]) - 1);
-        const ni = 3 * (parseInt(sp[2]) - 1);
-        const times_2_value = 2 * value;
-        const times_3_value = 3 * value;
-        vertices[times_3_value] = v[vi];
-        vertices[times_3_value + 1] = v[vi + 1];
-        vertices[times_3_value + 2] = v[vi + 2];
-        uvs[times_2_value] = vt[uvi];
-        uvs[times_2_value + 1] = vt[uvi + 1];
-        normals[times_3_value] = vn[ni];
-        normals[times_3_value + 1] = vn[ni + 1];
-        normals[times_3_value + 2] = vn[ni + 2];
-    }
     return {
-        vertices: vertices,
-        uvs: uvs,
-        normals: normals,
-        indices: new Uint16Array(indices)
+        vertices,
+        uvs,
+        normals,
+        indices: packed.length > 65535 ? new Uint32Array(indices) : new Uint16Array(indices)
     };
 }
 
-/**
- * @param {String} url 
- */
-export function readObj(url) {
-    const obj_str = getFileContent(url);
-    return parseObj(obj_str);
+export async function loadObj(url, { signal } = {}) {
+    log.time(url);
+    const response = await fetch(url, { signal });
+    if (!response.ok) throw new Error(`Could not load OBJ (${response.status}): ${url}`);
+    const result = parseObj(await response.text());
+    log.timeEnd(url, { vertices: result.vertices.length / 3, triangles: result.indices.length / 3 });
+    log.info("OBJ loaded", { url, vertices: result.vertices.length / 3 });
+    return result;
+}
+
+/** @deprecated Use loadObj. */
+export function readObj() {
+    throw new Error("readObj() was synchronous. Use await loadObj(url) instead.");
 }

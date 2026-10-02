@@ -1,12 +1,14 @@
 import { Object3D } from "../core/Object3D.js";
-import { vec3, vec4, mat3, mat4 } from "../lib/glMatrix/src/index.js";
+import { vec3, mat4 } from "../lib/glMatrix/src/index.js";
+
+// [MODIFIED FROM ORIGINAL] Legacy camera gained view/lookAt support; new code uses CameraComponent.
 
 
 export class Camera extends Object3D{
     constructor(fFov = 90, fAspectRatio = 1, fFar = 1000, fNear = 0.001){
         super();
 
-        this.vcamera = [0, 0, 0];
+        this.vcamera = this.position;
         //width / height
         this.fAspectRatio = fAspectRatio;
 
@@ -16,9 +18,11 @@ export class Camera extends Object3D{
         this.fFar = fFar;
         this.fNear = fNear;
 
-        this.lookat;
+        this.target = vec3.fromValues(0, 0, 0);
+        this.up = vec3.fromValues(0, 1, 0);
 
         this.projectionMatrix = mat4.create();
+        this.viewMatrix = mat4.create();
     }
 
 
@@ -41,6 +45,16 @@ export class Camera extends Object3D{
         mat4.perspective(this.projectionMatrix, this.fFov/180*Math.PI, this.fAspectRatio, this.fNear, this.fFar);
 
         return this.projectionMatrix;
+    }
+
+    lookAt(target) {
+        vec3.copy(this.target, target);
+        return this;
+    }
+
+    update_viewMatrix() {
+        mat4.lookAt(this.viewMatrix, this.position, this.target, this.up);
+        return this.viewMatrix;
     }
 
     

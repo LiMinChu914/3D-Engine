@@ -1,34 +1,146 @@
-<!DOCTYPE html>
-<html>
-
+<!doctype html>
+<!-- [MODIFIED — WORLD SCENE] Object showcase now links to a separate large world. -->
+<html lang="zh-Hant">
 <head>
-    <script type = 'module' src = 'script.js'></script>
-    <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            display: flex;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-        }
-        #canvas {
-            width: 95vh;
-            height: 95vh;
-            margin: auto;
-            border: 2px solid rgb(160, 52, 52);
-        }
-        #fps {
-            position: absolute;
-        }
-    </style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Flux 3D — 一個以原生 WebGL 與 JavaScript 打造的輕量 3D 引擎展示。">
+    <title>Flux 3D — WebGL Engine</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0d0c'/%3E%3Cpath d='M16 4 27 10v12l-11 6-11-6V10Z' fill='none' stroke='%23c9ff45' stroke-width='2'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="script.js"></script>
 </head>
-
 <body>
-    <canvas id='canvas' width='800px' height='800px'></canvas>
-    <br>
-    <span id="fps"></span>
-</body>
+    <header class="topbar">
+        <a class="brand" href="#viewer" aria-label="Flux 3D 首頁">
+            <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span>FLUX <b>3D</b></span>
+        </a>
+        <nav aria-label="主要導覽">
+            <a class="active" href="#viewer">展示台</a>
+            <a href="#features">引擎能力</a>
+            <a href="world.html">世界場景</a>
+            <a href="architecture.html">專案程式架構</a>
+            <a href="https://github.com/LiMinChu914/3D-Engine" target="_blank" rel="noreferrer">原始碼 ↗</a>
+        </nav>
+        <div class="topbar-actions">
+            <button class="log-toggle" id="logger-toggle" type="button" aria-controls="logger-panel" aria-expanded="false">LOG <span id="logger-count">0</span></button>
+            <button class="icon-button" id="fullscreen" type="button" aria-label="全螢幕檢視">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>
+            </button>
+        </div>
+    </header>
 
+    <main id="viewer">
+        <section class="hero-copy" aria-labelledby="hero-title">
+            <div class="eyebrow"><span></span> WEBGL / REAL-TIME</div>
+            <h1 id="hero-title">在瀏覽器裡，<br><em>看見程式運轉。</em></h1>
+            <p>一個從矩陣、光照到材質都以原生 JavaScript 打造的迷你 3D 引擎。沒有黑盒，只有每一幀真實的運算。</p>
+            <div class="hero-actions">
+                <button class="primary-button" id="focus-viewer" type="button">開始探索 <span>→</span></button>
+                <a class="world-cta" href="world.html" title="可切換程序材質與 Poly Haven 寫實材質">世界場景 ×2 <span>→</span></a>
+                <a class="architecture-cta" href="architecture.html">專案程式架構 <span>↗</span></a>
+            </div>
+        </section>
+
+        <section class="viewport-shell" aria-label="3D 模型展示台">
+            <canvas id="canvas" tabindex="0" aria-label="Flux 3D 即時渲染畫布"></canvas>
+            <div class="canvas-grid" aria-hidden="true"></div>
+            <div class="loading" id="loading" role="status">
+                <span class="loader"></span>
+                <p>正在載入模型資源</p>
+                <small>PREPARING GPU BUFFERS</small>
+            </div>
+            <div class="viewport-topline">
+                <span><i class="live-dot"></i> LIVE RENDER</span>
+                <span id="fps">-- FPS</span>
+            </div>
+            <div class="axis" aria-hidden="true">
+                <span class="axis-y">Y</span><span class="axis-x">X</span><span class="axis-z">Z</span>
+            </div>
+            <p class="drag-label">DRAG TO ORBIT</p>
+        </section>
+
+        <aside class="control-panel" aria-label="3D 控制面板">
+            <div class="panel-heading">
+                <div>
+                    <span class="panel-kicker">SCENE / 01</span>
+                    <h2>物件檢視器</h2>
+                </div>
+                <button class="reset-button" id="reset" type="button" aria-label="重設視角">↻</button>
+            </div>
+
+            <div class="control-group">
+                <label>模型</label>
+                <div class="segmented" id="model-picker">
+                    <button class="selected" type="button" data-model="apple">APPLE</button>
+                    <button type="button" data-model="camera">CAMERA</button>
+                </div>
+            </div>
+
+            <div class="object-meta">
+                <div><span>VERTICES</span><strong id="vertex-count">—</strong></div>
+                <div><span>TRIANGLES</span><strong id="triangle-count">—</strong></div>
+                <div><span id="mode-label-title">MATERIAL</span><strong id="mode-label">NORMAL/LIT</strong></div>
+            </div>
+
+            <div class="control-group slider-group">
+                <div class="label-row"><label for="light-angle">光源角度</label><output id="light-value">35°</output></div>
+                <input id="light-angle" type="range" min="-160" max="160" value="35">
+            </div>
+
+            <div class="control-group slider-group">
+                <div class="label-row"><label for="normal-strength">法線強度</label><output id="normal-value">1.0</output></div>
+                <input id="normal-strength" type="range" min="0" max="2" value="1" step="0.1">
+            </div>
+
+            <div class="switch-list">
+                <label class="switch-row">
+                    <span><b>自動旋轉</b><small>持續展示模型表面</small></span>
+                    <input id="auto-rotate" type="checkbox" checked><i></i>
+                </label>
+                <label class="switch-row">
+                    <span><b>線框模式</b><small>顯示三角網格拓樸</small></span>
+                    <input id="wireframe" type="checkbox"><i></i>
+                </label>
+            </div>
+
+            <div class="render-status">
+                <span>RENDERER</span>
+                <strong><i></i> WebGL 1.0</strong>
+            </div>
+        </aside>
+    </main>
+
+    <aside class="logger-panel" id="logger-panel" data-open="false" aria-label="引擎記錄面板">
+        <header>
+            <div><span>ENGINE DIAGNOSTICS</span><h2>Runtime Logger</h2></div>
+            <button id="logger-close" type="button" aria-label="關閉記錄面板">×</button>
+        </header>
+        <div class="logger-toolbar">
+            <div class="logger-filters" aria-label="篩選記錄等級">
+                <button class="selected" data-log-filter="all" type="button">ALL</button>
+                <button data-log-filter="info" type="button">INFO</button>
+                <button data-log-filter="warn" type="button">WARN</button>
+                <button data-log-filter="error" type="button">ERROR</button>
+            </div>
+            <button id="logger-clear" type="button">CLEAR</button>
+        </div>
+        <ol class="logger-entries" id="logger-entries" data-empty="true"></ol>
+    </aside>
+
+    <section class="feature-strip" id="features" aria-label="引擎能力">
+        <article><span>01</span><div><b>NORMAL MAPPING</b><small>切線空間表面細節</small></div></article>
+        <article><span>02</span><div><b>DUAL WORLD MATERIALS</b><small>程序／CC0 寫實材質切換</small></div></article>
+        <article><span>03</span><div><b>FRUSTUM CULLING</b><small>大型場景區塊剔除</small></div></article>
+        <article><span>04</span><div><b>STATIC BATCHING</b><small>低 draw-call 世界網格</small></div></article>
+    </section>
+
+    <footer>
+        <span>FLUX 3D / BUILT FROM FIRST PRINCIPLES</span>
+        <a href="world.html">PROCEDURAL WORLD →</a>
+        <a href="world.html?material=textured">TEXTURED WORLD →</a>
+        <span>JAVASCRIPT + GLSL</span>
+    </footer>
+</body>
 </html>

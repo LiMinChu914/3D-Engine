@@ -1,0 +1,89 @@
+<!doctype html>
+<!-- [MODIFIED — TEXTURED WORLD] Standalone world with procedural/CC0 material variants. -->
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <meta name="description" content="Flux 3D 程序化大型世界：山脈、海洋、森林、聚落與即時動畫。">
+    <title>世界場景 — Flux 3D</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0d0c'/%3E%3Cpath d='M16 4 27 10v12l-11 6-11-6V10Z' fill='none' stroke='%23c9ff45' stroke-width='2'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="world.css">
+    <script type="module" src="world.js"></script>
+</head>
+<body class="world-page">
+    <canvas id="world-canvas" aria-label="Flux 3D 大型世界即時畫面"></canvas>
+    <div class="world-vignette" aria-hidden="true"></div>
+
+    <header class="world-nav">
+        <a class="world-brand" href="index.html"><span>←</span> FLUX <b>WORLD</b></a>
+        <div class="world-mode"><i></i><span id="world-mode">CINEMATIC</span></div>
+        <div class="world-actions">
+            <div class="material-switch" aria-label="世界材質版本">
+                <a data-material-style="procedural" href="world.html">程序</a>
+                <a data-material-style="textured" href="world.html?material=textured">寫實材質</a>
+            </div>
+            <button id="world-wireframe" type="button" aria-pressed="false">WIREFRAME</button>
+            <button class="log-toggle" id="logger-toggle" type="button" aria-controls="logger-panel" aria-expanded="false">LOG <span id="logger-count">0</span></button>
+            <button id="world-fullscreen" type="button" aria-label="全螢幕">⛶</button>
+        </div>
+    </header>
+
+    <section class="world-intro" aria-labelledby="world-title">
+        <p class="world-kicker" id="world-kicker">PROCEDURAL / 128 × 128</p>
+        <h1 id="world-title">一座會呼吸的<br><em id="world-title-accent">方塊世界。</em></h1>
+        <p id="world-description">山脈、海洋、森林和聚落由引擎即時生成。移動的太陽、距離霧與波動水面持續改變世界。</p>
+        <button id="enter-world" type="button">進入世界 <span>→</span></button>
+        <small>WASD 移動 · SPACE / E 上升 · SHIFT / Q 下降 · 滑鼠環視</small>
+    </section>
+
+    <aside class="world-hud" aria-label="世界運作狀態">
+        <div><span>FPS</span><strong id="world-fps">--</strong></div>
+        <div><span>DRAW CALLS</span><strong id="draw-calls">--</strong></div>
+        <div><span>CULLED</span><strong id="culled-chunks">--</strong></div>
+        <div><span>BIOME</span><strong id="biome">--</strong></div>
+        <div><span>FLIGHT</span><strong id="flight-height">+0.0 m</strong></div>
+        <div><span>XYZ</span><strong id="coordinates">-- / -- / --</strong></div>
+    </aside>
+
+    <section class="world-summary" aria-label="世界資料">
+        <div><span>CHUNKS</span><strong id="chunk-count">--</strong></div>
+        <div><span>VERTICES</span><strong id="world-vertices">--</strong></div>
+        <div><span>OBJECTS</span><strong id="world-objects">--</strong></div>
+        <div><span>MATERIAL</span><strong id="world-material">--</strong></div>
+    </section>
+
+    <div class="crosshair" aria-hidden="true"><i></i><i></i></div>
+    <div class="mobile-controls" aria-label="移動控制">
+        <button data-move="forward" aria-label="向前">↑</button>
+        <button data-move="up" aria-label="垂直上升">＋</button>
+        <button data-move="left" aria-label="向左">←</button>
+        <button data-move="back" aria-label="向後">↓</button>
+        <button data-move="right" aria-label="向右">→</button>
+        <button data-move="down" aria-label="垂直下降">−</button>
+    </div>
+
+    <a class="material-credit" href="https://polyhaven.com" target="_blank" rel="noreferrer">MATERIAL <strong id="material-label">PROCEDURAL</strong> ↗</a>
+
+    <div class="world-loading" id="world-loading" role="status">
+        <div class="loading-mark"><span></span><span></span><span></span></div>
+        <strong>正在初始化世界生成器</strong>
+        <div class="loading-track"><i></i></div>
+        <small>BUILDING STATIC CHUNKS / CALCULATING BOUNDS</small>
+    </div>
+
+    <aside class="logger-panel" id="logger-panel" data-open="false" aria-label="引擎記錄面板">
+        <header><div><span>ENGINE DIAGNOSTICS</span><h2>World Logger</h2></div><button id="logger-close" type="button" aria-label="關閉">×</button></header>
+        <div class="logger-toolbar">
+            <div class="logger-filters">
+                <button class="selected" data-log-filter="all" type="button">ALL</button>
+                <button data-log-filter="info" type="button">INFO</button>
+                <button data-log-filter="warn" type="button">WARN</button>
+                <button data-log-filter="error" type="button">ERROR</button>
+            </div>
+            <button id="logger-clear" type="button">CLEAR</button>
+        </div>
+        <ol class="logger-entries" id="logger-entries" data-empty="true"></ol>
+    </aside>
+</body>
+</html>

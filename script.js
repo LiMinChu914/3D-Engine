@@ -1,110 +1,241 @@
-import { vec3, mat4 } from "./lib/glMatrix/src/index.js";
-import { Object3D } from "./core/Object3D.js";
-
 import { Geometry } from "./core/Geometry.js";
-import { Mesh } from "./objects/Mesh.js";
-import { Scene } from "./scene/Scene.js";
-import { Renderer } from "./Renderer/Renderer.js";
-import { Camera } from "./cameras/camera.js";
 import { Material } from "./core/Material.js";
-import * as teapot from "./teapot.js";
+import { Entity } from "./core/Entity.js";
+import { World } from "./scene/World.js";
+import { Transform } from "./components/Transform.js";
+import { MeshRenderer } from "./components/MeshRenderer.js";
+import { CameraComponent } from "./components/Camera.js";
+import { PointLight } from "./components/PointLight.js";
+import { Renderer } from "./Renderer/Renderer.js";
+import { loadObj } from "./read_obj.js";
+import { logger } from "./core/Logger.js";
+import { mountLoggerPanel } from "./ui/LoggerPanel.js";
 
-import { readObj } from "./read_obj.js";
+// [MODIFIED — WORLD SCENE EXTRACTION]
+// This entry now only owns the Apple / Camera object viewer. The large-world
+// application and its animation live in world.js and world/WorldAnimation.js.
 
-window.addEventListener('load', startup);
+const MODEL_CONFIG = {
+    apple: {
+        object: "./apple/food_apple_01_4k.obj",
+        color: "./apple/food_apple_01_diff_4k.jpg",
+        normal: "./apple/food_apple_01_nor_gl_4k.jpg",
+        scale: 8.2,
+        position: [0, -0.35, 0],
+        rotation: [0, -0.55, 0],
+        shininess: 28
+    },
+    camera: {
+        object: "./camera/Camera_01_4k.obj",
+        color: "./camera/Camera_01_body_diff_4k.jpg",
+        normal: "./camera/Camera_01_body_nor_gl_4k.jpg",
+        scale: 3.4,
+        position: [0.1, -0.13, -0.12],
+        rotation: [-0.08, 0.35, 0],
+        shininess: 42
+    }
+};
 
+const log = logger.child("Showcase");
+const $ = (selector) => document.querySelector(selector);
+const canvas = $("#canvas");
+const loading = $("#loading");
+const fpsOutput = $("#fps");
+const vertexOutput = $("#vertex-count");
+const triangleOutput = $("#triangle-count");
+const modelButtons = [...document.querySelectorAll("[data-model]")];
+
+let renderer;
+let currentEntity;
+let currentModel = "apple";
+let autoRotate = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let dragging = false;
+let previousPointer = [0, 0];
+let frameCount = 0;
+let fpsStartedAt = performance.now();
+let lastFrame = performance.now();
+let loadVersion = 0;
+const modelCache = new Map();
+
+const world = new World();
+world.background = [0.035, 0.044, 0.039, 1];
+world.fog.near = 1e5;
+world.fog.far = 1e6;
+
+const camera = new Entity("Main Camera")
+    .add(new Transform({ position: [0, 0.08, 2.45] }))
+    .add(new CameraComponent({ fov: 36, near: 0.01, far: 100, target: [0, 0, 0] }));
+const light = new Entity("Key Light")
+    .add(new Transform({ position: [1.6, 1.8, 2.2] }))
+    .add(new PointLight({ color: [1, 0.96, 0.88] }));
+world.add(camera, light);
+
+function loadImage(url) {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.decoding = "async";
+        image.addEventListener("load", () => resolve(image), { once: true });
+        image.addEventListener("error", () => reject(new Error(`Could not load image: ${url}`)), { once: true });
+        image.src = url;
+    });
+}
+
+async function createModel(name) {
+    if (modelCache.has(name)) return modelCache.get(name);
+    const config = MODEL_CONFIG[name];
+    const [model, color, normal] = await Promise.all([
+        loadObj(config.object),
+        loadImage(config.color),
+        loadImage(config.normal)
+    ]);
+
+    // [MODIFIED — UV OWNERSHIP] Texture coordinates are constructed with Geometry.
+    const geometry = new Geometry(model.vertices, model.indices, model.normals, model.uvs);
+    const material = new Material(color, normal, { shininess: config.shininess });
+    const entity = new Entity(name)
+        .add(new Transform({
+            position: config.position,
+            rotation: config.rotation,
+            scale: [config.scale, config.scale, config.scale]
+        }))
+        .add(new MeshRenderer(geometry, material));
+    modelCache.set(name, entity);
+    return entity;
+}
+
+async function selectModel(name) {
+    if (name === currentModel && currentEntity) return;
+    const version = ++loadVersion;
+    loading.classList.remove("hidden");
+    loading.querySelector("p").textContent = `正在載入 ${name.toUpperCase()} 模型`;
+    modelButtons.forEach((button) => button.classList.toggle("selected", button.dataset.model === name));
+
+    try {
+        const entity = await createModel(name);
+        if (version !== loadVersion) return;
+        if (currentEntity) world.remove(currentEntity);
+        currentEntity = entity;
+        currentModel = name;
+        entity.get(MeshRenderer).material.normalStrength = Number($("#normal-strength").value);
+        world.add(entity);
+        const renderable = entity.get(MeshRenderer);
+        vertexOutput.textContent = renderable.geometry.vertice_num.toLocaleString("en-US");
+        triangleOutput.textContent = (renderable.geometry.indices.length / 3).toLocaleString("en-US");
+        camera.get(CameraComponent).lookAt([0, 0, 0]);
+        camera.get(Transform).setPosition([0, 0.08, 2.45]);
+        loading.classList.add("hidden");
+        log.info("Object ready", { name, vertices: renderable.geometry.vertice_num });
+    } catch (error) {
+        loading.querySelector("p").textContent = "模型載入失敗";
+        loading.querySelector("small").textContent = error.message;
+        log.error("Object failed to load", error);
+    }
+}
+
+function resetView() {
+    const config = MODEL_CONFIG[currentModel];
+    if (!currentEntity || !config) return;
+    const transform = currentEntity.get(Transform);
+    transform.setPosition(config.position);
+    transform.setScale([config.scale, config.scale, config.scale]);
+    transform.setRotation(config.rotation);
+    camera.get(Transform).setPosition([0, 0.08, 2.45]);
+}
+
+function updateLight(degrees) {
+    const angle = degrees * Math.PI / 180;
+    light.get(Transform).setPosition([Math.sin(angle) * 2.4, 1.65, Math.cos(angle) * 2.4]);
+}
+
+function bindControls() {
+    modelButtons.forEach((button) => button.addEventListener("click", () => selectModel(button.dataset.model)));
+    $("#reset").addEventListener("click", resetView);
+    $("#auto-rotate").checked = autoRotate;
+    $("#auto-rotate").addEventListener("change", (event) => { autoRotate = event.target.checked; });
+    $("#wireframe").addEventListener("change", (event) => { renderer.wireframe = event.target.checked; });
+
+    const lightInput = $("#light-angle");
+    lightInput.addEventListener("input", () => {
+        $("#light-value").textContent = `${lightInput.value}°`;
+        updateLight(Number(lightInput.value));
+    });
+    updateLight(Number(lightInput.value));
+
+    const normalInput = $("#normal-strength");
+    normalInput.addEventListener("input", () => {
+        $("#normal-value").textContent = Number(normalInput.value).toFixed(1);
+        if (currentEntity) currentEntity.get(MeshRenderer).material.normalStrength = Number(normalInput.value);
+    });
+
+    canvas.addEventListener("pointerdown", (event) => {
+        dragging = true;
+        previousPointer = [event.clientX, event.clientY];
+        canvas.setPointerCapture(event.pointerId);
+    });
+    canvas.addEventListener("pointermove", (event) => {
+        if (!dragging || !currentEntity) return;
+        currentEntity.get(Transform).rotate(
+            (event.clientY - previousPointer[1]) * 0.008,
+            (event.clientX - previousPointer[0]) * 0.008,
+            0
+        );
+        previousPointer = [event.clientX, event.clientY];
+    });
+    const stopDragging = () => { dragging = false; };
+    canvas.addEventListener("pointerup", stopDragging);
+    canvas.addEventListener("pointercancel", stopDragging);
+    canvas.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        const transform = camera.get(Transform);
+        transform.setPosition([
+            transform.position[0],
+            transform.position[1],
+            Math.max(1.25, Math.min(4.2, transform.position[2] + event.deltaY * 0.002))
+        ]);
+    }, { passive: false });
+
+    $("#focus-viewer").addEventListener("click", () => {
+        canvas.scrollIntoView({ behavior: "smooth", block: "center" });
+        canvas.focus({ preventScroll: true });
+    });
+    $("#fullscreen").addEventListener("click", () => {
+        const target = $(".viewport-shell");
+        if (!document.fullscreenElement) target.requestFullscreen?.();
+        else document.exitFullscreen?.();
+    });
+}
+
+function animate(now) {
+    const deltaSeconds = Math.min((now - lastFrame) / 1000, 0.05);
+    lastFrame = now;
+    if (currentEntity && autoRotate && !dragging) currentEntity.get(Transform).rotate(0, deltaSeconds * 0.34, 0);
+    renderer.render(world, camera);
+    frameCount += 1;
+    if (now - fpsStartedAt >= 500) {
+        fpsOutput.textContent = `${Math.round(frameCount * 1000 / (now - fpsStartedAt))} FPS`;
+        frameCount = 0;
+        fpsStartedAt = now;
+    }
+    requestAnimationFrame(animate);
+}
 
 async function startup() {
-
-    const canvas = document.querySelector("#canvas");
-
-    //console.log(mat4.fromTranslation(mat4.create(), [1,2,3]));
-
-    var vertices_1 = [
-        -0.5, 0.5, 0.0,
-        -0.5, -0.5, 0.0,
-        0.5, -0.5, 0.0,
-        0.5, 0.5, 0.0
-    ];
-    const indices_1 = [
-        0, 2, 1,
-        0, 3, 2
-    ];
-
-
-    const obj1 = readObj('./apple/food_apple_01_4k.obj');
-    const obj2 = readObj('./camera/Camera_01_4k.obj');
-
-
-    function load_image(src) {
-        return new Promise((resolve, reject) => {
-            const image = new Image();
-            image.src = src;
-            image.onload = () => resolve(image);
-        });
+    mountLoggerPanel(logger);
+    window.addEventListener("error", (event) => log.error("Unhandled browser error", event.error ?? event.message));
+    window.addEventListener("unhandledrejection", (event) => log.error("Unhandled promise rejection", event.reason));
+    try {
+        renderer = new Renderer(canvas);
+        bindControls();
+        const requested = new URLSearchParams(location.search).get("view");
+        const initial = ["apple", "camera"].includes(requested) ? requested : "apple";
+        await selectModel(initial);
+        requestAnimationFrame(animate);
+        window.setTimeout(() => createModel(initial === "apple" ? "camera" : "apple").catch(() => {}), 900);
+    } catch (error) {
+        loading.querySelector("p").textContent = "無法啟動 WebGL";
+        loading.querySelector("small").textContent = error.message;
+        log.error("Application startup failed", error);
     }
-
-    async function load_texture(map_src, normal_src) {
-        let map = load_image(map_src);
-        let normalMap = load_image(normal_src);
-        map = await map;
-        normalMap = await normalMap;
-        return [map, normalMap];
-    }
-
-    
-    // let geometry_1 = new Geometry(teapot.vertices, teapot.indices.map(i => i - 1));
-    //object 1
-    let geometry_1 = new Geometry(obj1.vertices, obj1.indices, obj1.normals);
-    let [texture_map1, normal_texture1] = await load_texture('./apple/food_apple_01_diff_4k.jpg', './apple/food_apple_01_nor_gl_4k.jpg');
-    let material_1 = new Material(texture_map1, normal_texture1, obj1.uvs);
-    
-    let mesh_1 = new Mesh(geometry_1, material_1);
-    mesh_1.object_translate([0.1, -0.1, -0.2]);
-    mesh_1.object_scale([1.2, 1.2, 1.2]);
-    //object 2
-    let geometry_2 = new Geometry(obj2.vertices, obj2.indices, obj2.normals);
-    let [texture_map2, normal_texture2] = await load_texture('./camera/Camera_01_body_diff_4k.jpg', './camera/Camera_01_body_nor_gl_4k.jpg');
-    let material_2 = new Material(texture_map2, normal_texture2, obj2.uvs);
-
-    let mesh_2 = new Mesh(geometry_2, material_2);
-    mesh_2.object_translate([-0.07, -0.1, -0.2]);
-    //mesh_2.object_scale([1.0, 1.0, 1.0]);
-    //floor
-    let floor_vertices = new Float32Array([-1.0, 0.0, 1.0,
-                                        -1.0, 0.0, -1.0,
-                                        1.0, 0.0, -1.0,
-                                        1.0, 0.0, 1.0]);
-    let floor_indices = new Uint16Array([0, 1, 2, 0, 2, 3]);
-    let floor_normals = new Float32Array([0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]);
-    let floor_uvs = new Float32Array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0]);
-
-    let geometry_3 = new Geometry(floor_vertices, floor_indices, floor_normals);
-    let [texture_map3, normal_texture3] = await load_texture('./bricks/random_bricks_thick_diff_4k.jpg', './bricks/random_bricks_thick_nor_gl_4k.jpg');
-    let material_3 = new Material(texture_map3, normal_texture3, floor_uvs);
-    let mesh_3 = new Mesh(geometry_3, material_3);
-    mesh_3.object_translate([0.0, -0.1, 0.0]);
-
-    const scene = new Scene();
-    scene.add(mesh_1, mesh_2, mesh_3);
-
-    setInterval(function () {
-        //mesh_1.object_rotateX(0.01);
-        mesh_1.object_rotateY(0.01);
-        mesh_2.object_rotateY(0.01);
-        //mesh_1.object_rotateZ(0.01);
-        scene.rotateY_light(0.05);
-    }, 10);
-
-    const camera = new Camera(90, canvas.width / canvas.height);
-
-    const renderer = new Renderer(canvas);
-
-    draw();
-
-    function draw() {
-        renderer.render(scene, camera);
-        requestAnimationFrame(draw);
-    }
-    
 }
+
+startup();

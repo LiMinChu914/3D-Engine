@@ -1,0 +1,21 @@
+# Generated previews and screenshots
+*.png
+*.PNG
+
+# 3D authoring/source exports that are not required at runtime
+*.blend
+*.blend1
+*.fbx
+*.exr
+
+# Local tooling and operating-system files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+node_modules/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp

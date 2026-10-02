@@ -1,5 +1,7 @@
-import { vec3, vec4, mat3, mat4 } from "../lib/glMatrix/src/index.js";
+import { vec3 } from "../lib/glMatrix/src/index.js";
 import { Object3D } from "../core/Object3D.js";
+
+// [MODIFIED FROM ORIGINAL] Legacy Scene retained for backwards compatibility; use World for components.
 
 
 
@@ -8,25 +10,18 @@ export class Scene extends Object3D{
     constructor(){
         super();
 
-        this.objects = [];
+        // Kept as an alias for older code. Object3D owns the canonical children list.
+        this.objects = this.children;
         
         this.background = null;
         
         this.light = vec3.set(vec3.create(), 3.0, 3.0, 0.0);
+        this.lightColor = new Float32Array([1.0, 0.96, 0.88]);
     }
 
-    add(object){
-        if(arguments.length > 1){
-            for(let i = 0; i < arguments.length; i++){
-                this.add(arguments[i]);
-            }
-        }
-        else if(object == this){
-            console.log("this object is exist");
-        }
-        else{
-            this.objects.push(object);
-        }
+    add(...objects) {
+        super.add(...objects);
+        return this;
     }
 
     rotateY_light(rad){

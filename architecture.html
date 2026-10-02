@@ -1,0 +1,337 @@
+<!doctype html>
+<!-- [MODIFIED — LARGE WORLD] Architecture map now includes world pipeline and culling. -->
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Flux 3D 專案程式架構：探索每個引擎類別、關係與渲染資料流。">
+    <title>專案程式架構 — Flux 3D</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0d0c'/%3E%3Cpath d='M16 4 27 10v12l-11 6-11-6V10Z' fill='none' stroke='%23c9ff45' stroke-width='2'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="architecture.css">
+    <script type="module" src="architecture.js"></script>
+</head>
+<body class="architecture-page">
+    <header class="topbar">
+        <a class="brand" href="index.html" aria-label="回到 Flux 3D 首頁">
+            <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span>FLUX <b>3D</b></span>
+        </a>
+        <nav aria-label="主要導覽">
+            <a href="index.html">展示台</a>
+            <a href="index.html#features">引擎能力</a>
+            <a href="world.html">世界場景</a>
+            <a class="active" href="architecture.html">專案程式架構</a>
+            <a href="https://github.com/LiMinChu914/3D-Engine" target="_blank" rel="noreferrer">原始碼 ↗</a>
+        </nav>
+        <a class="back-link" href="index.html" aria-label="回到展示台">← <span>返回展示台</span></a>
+    </header>
+
+    <main class="architecture-main">
+        <section class="architecture-intro">
+            <div>
+                <div class="eyebrow"><span></span> SYSTEM MAP / CURRENT STATE</div>
+                <h1>專案程式架構</h1>
+                <p>這張圖描述目前程式真正的組成方式。點選任一元件，可以查看它的責任、重要 API、相依關係與現存技術債。</p>
+            </div>
+            <dl class="architecture-stats">
+                <div><dt>CLASSES</dt><dd>23</dd></div>
+                <div><dt>COMPONENTS</dt><dd>06</dd></div>
+                <div><dt>RENDER PATH</dt><dd>WEBGL 1</dd></div>
+            </dl>
+        </section>
+
+        <section class="component-now-section" aria-labelledby="component-title">
+            <header class="section-heading">
+                <div>
+                    <span>01 / CURRENT COMPONENT DESIGN</span>
+                    <h2 id="component-title">目前採用的 Component 組合架構</h2>
+                </div>
+                <span class="new-architecture-badge">NEW / PRIMARY PATH</span>
+            </header>
+            <p class="section-description">Entity 本身不繼承 Transform、Camera 或 Mesh；它只是一個容器。功能由可自由加入、移除的 Component 組合而成。</p>
+
+            <div class="composition-board">
+                <div class="world-frame">
+                    <div class="world-title"><span>ENTITY REGISTRY</span><strong>World</strong><i>NEW</i></div>
+                    <div class="entity-recipes">
+                        <article>
+                            <header><span>ENTITY</span><b>Apple / Camera Model</b></header>
+                            <div class="component-chip transform"><i>NEW</i><strong>Transform</strong><small>position · rotation · scale</small></div>
+                            <div class="plus">+</div>
+                            <div class="component-chip render"><i>NEW</i><strong>MeshRenderer</strong><small>Geometry · Material · tangent</small></div>
+                            <div class="plus">+</div>
+                            <div class="component-chip animator"><i>NEW</i><strong>Animator</strong><small>per-entity update behaviour</small></div>
+                        </article>
+                        <article>
+                            <header><span>ENTITY</span><b>Main Camera</b></header>
+                            <div class="component-chip transform"><i>NEW</i><strong>Transform</strong><small>camera position</small></div>
+                            <div class="plus">+</div>
+                            <div class="component-chip camera"><i>NEW</i><strong>CameraComponent</strong><small>view · projection · target</small></div>
+                        </article>
+                        <article>
+                            <header><span>ENTITY</span><b>Key Light</b></header>
+                            <div class="component-chip transform"><i>NEW</i><strong>Transform</strong><small>light position</small></div>
+                            <div class="plus">+</div>
+                            <div class="component-chip light"><i>NEW</i><strong>PointLight</strong><small>color · intensity</small></div>
+                        </article>
+                    </div>
+                </div>
+                <div class="composition-arrow"><span>QUERY</span>→</div>
+                <div class="composition-target modified-target"><i>MODIFIED</i><span>RENDER SYSTEM</span><strong>Renderer</strong><small>query(Transform, MeshRenderer)</small></div>
+                <div class="composition-arrow"><span>DRAW</span>→</div>
+                <div class="composition-target"><span>PLATFORM</span><strong>WebGL 1</strong><small>buffers · textures · GLSL</small></div>
+            </div>
+
+            <div class="component-inventory">
+                <article><span>NEW CLASS</span><h3>Entity</h3><p>保存 component map 與 active 狀態，處理 component 的 attach、detach 與生命週期。</p><a href="core/Entity.js">core/Entity.js ↗</a></article>
+                <article><span>NEW BASE</span><h3>Component</h3><p>定義 enabled、entity、onAttach 與 onDetach，作為可掛載行為的最小合約。</p><a href="components/Component.js">components/Component.js ↗</a></article>
+                <article><span>NEW COMPONENT</span><h3>Transform</h3><p>管理 local/world matrix、父子階層與 dirty propagation，不再依賴 Object3D。</p><a href="components/Transform.js">components/Transform.js ↗</a></article>
+                <article><span>NEW COMPONENT</span><h3>MeshRenderer</h3><p>組合 Geometry 與 Material，提供 Renderer 所需的可渲染資料。</p><a href="components/MeshRenderer.js">components/MeshRenderer.js ↗</a></article>
+                <article><span>NEW COMPONENT</span><h3>CameraComponent</h3><p>任何擁有 Transform 的 Entity 都能透過它成為 Camera。</p><a href="components/Camera.js">components/Camera.js ↗</a></article>
+                <article><span>NEW COMPONENT</span><h3>PointLight</h3><p>把光源顏色與強度掛在 Entity 上，位置由 Transform 提供。</p><a href="components/PointLight.js">components/PointLight.js ↗</a></article>
+                <article><span>NEW CLASS</span><h3>World</h3><p>保存 Entity、建立 component index，並以 query() 取得符合條件的 Entity。</p><a href="scene/World.js">scene/World.js ↗</a></article>
+                <article><span>NEW COMPONENT</span><h3>Animator</h3><p>把物件動畫行為掛到 Entity，由獨立 system 統一更新。</p><a href="components/Animator.js">components/Animator.js ↗</a></article>
+                <article><span>NEW SYSTEM</span><h3>AnimationSystem</h3><p>查詢 Animator + Transform，依 delta time 執行每個動畫。</p><a href="systems/AnimationSystem.js">systems/AnimationSystem.js ↗</a></article>
+                <article><span>NEW SERVICE</span><h3>Logger</h3><p>分級、scope、history、timer 與訂閱機制，並連接網站 diagnostics drawer。</p><a href="core/Logger.js">core/Logger.js ↗</a></article>
+                <article><span>NEW CORE</span><h3>Frustum</h3><p>從 view-projection matrix 建立六個平面，以 Geometry bounding sphere 剔除不可見區塊。</p><a href="core/Frustum.js">core/Frustum.js ↗</a></article>
+            </div>
+        </section>
+
+        <section class="component-now-section" aria-labelledby="world-architecture-title">
+            <header class="section-heading">
+                <div><span>02 / LARGE WORLD PIPELINE</span><h2 id="world-architecture-title">世界場景的分層與資料流</h2></div>
+                <a class="change-doc-link" href="world.html">執行世界場景 ↗</a>
+            </header>
+            <p class="section-description">世界不是塞回 script.js：生成、動畫、六軸控制與網站入口各自分離。程序版與 CC0 寫實材質版共用同一套 Geometry 生成與 UV layout，只替換 atlas 與 Material。</p>
+            <div class="composition-board">
+                <div class="composition-target"><span>GENERATION</span><strong>WorldScene</strong><small>terrain · forest · buildings · ocean</small></div>
+                <div class="composition-arrow"><span>BATCH</span>→</div>
+                <div class="composition-target modified-target"><i>NEW</i><span>64 CHUNKS</span><strong>MeshBuilder</strong><small>position · normal · uv · index</small></div>
+                <div class="composition-arrow"><span>CULL</span>→</div>
+                <div class="composition-target"><span>RENDER</span><strong>Frustum + Renderer</strong><small>fog · waves · draw stats</small></div>
+            </div>
+            <div class="component-inventory">
+                <article><span>NEW WORLD BUILDER</span><h3>MeshBuilder</h3><p>建立 quad、box、terrain side，並把大量方塊靜態批次成每區塊一個 Geometry。</p><a href="world/ProceduralGeometry.js">world/ProceduralGeometry.js ↗</a></article>
+                <article><span>NEW APPLICATION</span><h3>WorldScene</h3><p>程序生成高度、biome、森林、建築、海洋，組成獨立的 Component World。</p><a href="world/WorldScene.js">world/WorldScene.js ↗</a></article>
+                <article><span>MODIFIED CONTROLLER</span><h3>FirstPersonController</h3><p>處理 WASD、Pointer Lock、觸控、地面跟隨，以及 Space/E、Shift/Q 垂直飛行。</p><a href="world/FirstPersonController.js">world/FirstPersonController.js ↗</a></article>
+                <article><span>NEW ANIMATION</span><h3>WorldAnimation</h3><p>獨立管理巡航鏡頭、日光軌跡、光色與天空／霧色，不寫入 script.js。</p><a href="world/WorldAnimation.js">world/WorldAnimation.js ↗</a></article>
+            </div>
+        </section>
+
+        <section class="runtime-section" aria-labelledby="runtime-title">
+            <header class="section-heading">
+                <div><span>03 / CURRENT RUNTIME ARCHITECTURE</span><h2 id="runtime-title">目前真正執行中的分層架構</h2></div>
+                <span class="new-architecture-badge">DEPENDENCY FLOWS DOWN</span>
+            </header>
+            <p class="section-description">上層可以呼叫下層，下層不依賴網站 DOM。World 管理 Entity；Component 保存資料與局部行為；Renderer 查詢資料並轉換為 GPU 指令。</p>
+
+            <div class="layer-stack" aria-label="執行架構分層">
+                <article><span>05 / APPLICATION</span><strong>script.js · world.js</strong><p>頁面啟動、DOM、輸入事件、主迴圈與場景組裝。</p></article>
+                <i>↓</i>
+                <article><span>04 / CONTROL & SYSTEMS</span><strong>FirstPersonController · WorldAnimation · AnimationSystem</strong><p>依 delta time 修改 Component 狀態，不直接呼叫 WebGL。</p></article>
+                <i>↓</i>
+                <article><span>03 / ECS SCENE</span><strong>World · Entity · Components</strong><p>保存 Entity、component index、Transform hierarchy 與 query 邊界。</p></article>
+                <i>↓</i>
+                <article><span>02 / RENDER DATA</span><strong>Geometry · Material · MeshRenderer · Frustum</strong><p>分離頂點屬性、表面參數、可渲染組合與可見性判斷。</p></article>
+                <i>↓</i>
+                <article><span>01 / PLATFORM</span><strong>Renderer · WebGL 1 · GLSL</strong><p>GPU buffer、texture cache、uniform、shader 與 draw call。</p></article>
+            </div>
+
+            <h3 class="subsection-title">資料擁有權</h3>
+            <div class="ownership-table" role="table" aria-label="引擎資料擁有權">
+                <div class="ownership-row heading"><span>擁有者</span><span>唯一責任</span><span>不應負責</span><span>主要消費者</span></div>
+                <div class="ownership-row"><b>Geometry</b><span>position / normal / UV / index / bounds</span><span>貼圖、光照參數</span><span>MeshRenderer、Frustum、Renderer</span></div>
+                <div class="ownership-row"><b>Material</b><span>texture、color、shininess、wave uniforms</span><span>UV 與 transform</span><span>Renderer / shader</span></div>
+                <div class="ownership-row"><b>Transform</b><span>position / rotation / scale、local/world matrix</span><span>mesh 與材質</span><span>Camera、Renderer、Systems</span></div>
+                <div class="ownership-row"><b>World</b><span>Entity registry、component index、query</span><span>GPU resource</span><span>Renderer、AnimationSystem</span></div>
+                <div class="ownership-row"><b>Renderer</b><span>GPU cache、culling、binding、draw statistics</span><span>遊戲規則、DOM</span><span>Application loop</span></div>
+                <div class="ownership-row"><b>Application</b><span>啟動、輸入、頁面狀態、frame scheduling</span><span>核心資料格式</span><span>使用者與瀏覽器</span></div>
+            </div>
+
+            <h3 class="subsection-title">主要模組與生命週期</h3>
+            <div class="runtime-catalog">
+                <article><span>CORE CONTAINER</span><h3>Entity</h3><p><b>建立：</b>Application / WorldScene<br><b>讀取：</b>World query<br><b>結束：</b>destroy() detach components</p></article>
+                <article><span>SCENE REGISTRY</span><h3>World</h3><p><b>建立：</b>每個場景一次<br><b>讀取：</b>query(Component...)<br><b>更新：</b>updateTransforms()</p></article>
+                <article><span>SPATIAL COMPONENT</span><h3>Transform</h3><p><b>寫入：</b>Controller / Animation<br><b>輸出：</b>worldMatrix<br><b>策略：</b>dirty propagation</p></article>
+                <article><span>RENDER COMPONENT</span><h3>MeshRenderer</h3><p><b>組合：</b>Geometry + Material<br><b>預處理：</b>tangent<br><b>查詢：</b>Renderer</p></article>
+                <article><span>VIEW COMPONENT</span><h3>CameraComponent</h3><p><b>輸入：</b>Transform + target<br><b>輸出：</b>view / projection<br><b>更新：</b>每幀 aspect</p></article>
+                <article><span>LIGHT COMPONENT</span><h3>PointLight</h3><p><b>輸入：</b>color / intensity<br><b>位置：</b>Transform<br><b>輸出：</b>render color</p></article>
+                <article><span>VERTEX DATA</span><h3>Geometry</h3><p><b>CPU：</b>typed arrays<br><b>空間：</b>box / sphere<br><b>GPU：</b>Renderer 建立 buffer</p></article>
+                <article><span>SURFACE DATA</span><h3>Material</h3><p><b>CPU：</b>texture references<br><b>Shader：</b>uniform values<br><b>不持有：</b>UV</p></article>
+                <article><span>VISIBILITY</span><h3>Frustum</h3><p><b>輸入：</b>projection × view<br><b>測試：</b>world bounding sphere<br><b>輸出：</b>visible / culled</p></article>
+                <article><span>GPU SYSTEM</span><h3>Renderer</h3><p><b>查詢：</b>MeshRenderer + Transform<br><b>快取：</b>buffer / texture<br><b>輸出：</b>WebGL draw calls</p></article>
+                <article><span>WORLD BUILDER</span><h3>WorldScene</h3><p><b>輸入：</b>seeded noise / material style<br><b>輸出：</b>64 chunks<br><b>共用：</b>同 seed 與 Geometry pipeline</p></article>
+                <article><span>INPUT CONTROL</span><h3>FirstPersonController</h3><p><b>輸入：</b>鍵盤 / 滑鼠 / touch<br><b>寫入：</b>Camera Transform<br><b>限制：</b>地面與飛行高度</p></article>
+                <article><span>FRAME ANIMATION</span><h3>WorldAnimation</h3><p><b>輸入：</b>delta time<br><b>寫入：</b>sun / sky / fog / camera<br><b>模式：</b>cinematic</p></article>
+                <article><span>DIAGNOSTICS</span><h3>Logger</h3><p><b>輸入：</b>level / scope / context<br><b>保存：</b>bounded history<br><b>輸出：</b>console / UI subscribers</p></article>
+                <article><span>ASSET PIPELINE</span><h3>OBJ / glTF Loader</h3><p><b>輸入：</b>network files<br><b>輸出：</b>typed arrays<br><b>邊界：</b>不建立 GPU resource</p></article>
+            </div>
+        </section>
+
+        <section class="change-section" aria-labelledby="change-title">
+            <header class="section-heading">
+                <div><span>04 / ORIGINAL → CURRENT</span><h2 id="change-title">相對原始程式的修改標示</h2></div>
+                <a class="change-doc-link" href="CHANGES.md">開啟完整對照文件 ↗</a>
+            </header>
+            <div class="change-table" role="table" aria-label="原始程式與目前程式比較">
+                <div class="change-row heading" role="row"><span>檔案</span><span>原始版本</span><span>目前版本</span></div>
+                <div class="change-row" role="row"><b>Object3D / Scene / Mesh / Camera</b><span>以繼承取得 transform 與場景能力</span><span><i class="tag modified">MODIFIED</i> 保留為相容層；網站改用 Entity + Components</span></div>
+                <div class="change-row" role="row"><b>Geometry / Material</b><span>UV 由 Material 持有，沒有 bounds</span><span><i class="tag modified">MODIFIED</i> UV 移至 Geometry，加入 box / sphere bounds</span></div>
+                <div class="change-row" role="row"><b>Renderer</b><span>每幀重新建立 GPU buffer，僅接受 Scene</span><span><i class="tag modified">MODIFIED</i> 快取、視錐剔除、霧、水波與統計</span></div>
+                <div class="change-row" role="row"><b>read_obj.js</b><span>同步 XMLHttpRequest，阻塞主執行緒</span><span><i class="tag modified">MODIFIED</i> fetch、負索引、32-bit index</span></div>
+                <div class="change-row" role="row"><b>Entity / Components / World</b><span>不存在</span><span><i class="tag new">NEW</i> Composition-based 架構與 query index</span></div>
+                <div class="change-row" role="row"><b>lib/screen/</b><span>早期獨立的 2D WebGL 路徑</span><span><i class="tag legacy">LEGACY</i> 未修改功能，等待移除或整併</span></div>
+                <div class="change-row" role="row"><b>網站 UI</b><span>單一 canvas 與 inline CSS</span><span><i class="tag new">NEW</i> 展示台、控制面板與架構文件</span></div>
+                <div class="change-row" role="row"><b>世界場景</b><span>不存在／曾混在物件切換器</span><span><i class="tag new">NEW</i> world.html 獨立大型程序世界</span></div>
+                <div class="change-row" role="row"><b>世界控制與材質</b><span>只能貼地水平移動，單一程序 atlas</span><span><i class="tag modified">MODIFIED</i> 六軸飛行＋可切換 CC0 diffuse/normal atlas</span></div>
+            </div>
+        </section>
+
+        <section class="map-section" aria-labelledby="map-title">
+            <header class="section-heading">
+                <div>
+                    <span>05 / ORIGINAL OOP COMPATIBILITY MAP</span>
+                    <h2 id="map-title">原始類別與相容層關係圖</h2>
+                </div>
+                <div class="diagram-legend" aria-label="關係圖圖例">
+                    <span><i class="line-solid"></i> 資料／呼叫</span>
+                    <span><i class="line-dashed"></i> 繼承</span>
+                    <span><i class="line-legacy"></i> 舊渲染路徑</span>
+                </div>
+            </header>
+
+            <div class="architecture-workspace">
+                <div class="diagram-scroller" aria-label="Flux 3D 架構圖，可水平捲動">
+                    <div class="diagram-canvas">
+                        <svg class="connections" viewBox="0 0 1080 650" role="img" aria-label="元件間的資料流、呼叫及繼承關係">
+                            <defs>
+                                <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path fill="#586159" d="M0 0L7 3.5L0 7Z"/></marker>
+                                <marker id="inherit" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path fill="#6ef0db" d="M0 0L8 4.5L0 9Z"/></marker>
+                            </defs>
+                            <g class="data-lines">
+                                <path d="M540 112V150H120V195"/>
+                                <path d="M540 112V135H830V100"/>
+                                <path d="M210 235H235V175H260"/>
+                                <path d="M450 175H475V245H505"/>
+                                <path d="M450 320H475V245H505"/>
+                                <path d="M685 245H712V140H740"/>
+                                <path d="M920 140H940V245H900"/>
+                                <path d="M920 355H940V285H900"/>
+                                <path d="M980 285V470"/>
+                            </g>
+                            <g class="inherit-lines">
+                                <path d="M600 475V430H595V285"/>
+                                <path d="M600 475V420H775V180"/>
+                                <path d="M600 475V440H830V395"/>
+                            </g>
+                            <g class="legacy-lines">
+                                <path d="M210 525H260"/>
+                                <path d="M450 540H860V515H900"/>
+                            </g>
+                        </svg>
+
+                        <button class="component-node modified node-app" data-component="app" type="button">
+                            <span>APPLICATION</span><strong>script.js</strong><small>組裝場景與網站互動</small>
+                        </button>
+                        <button class="component-node modified node-loader" data-component="loader" type="button">
+                            <span>ASSET PIPELINE</span><strong>OBJ Loader</strong><small>fetch → parseObj</small>
+                        </button>
+                        <button class="component-node modified node-geometry" data-component="geometry" type="button">
+                            <span>CORE CLASS</span><strong>Geometry</strong><small>頂點、法線、UV、bounds</small>
+                        </button>
+                        <button class="component-node modified node-material" data-component="material" type="button">
+                            <span>CORE CLASS</span><strong>Material</strong><small>貼圖與表面參數</small>
+                        </button>
+                        <button class="component-node modified node-mesh" data-component="mesh" type="button">
+                            <span>RENDERABLE CLASS</span><strong>Mesh</strong><small>Geometry + Material</small>
+                        </button>
+                        <button class="component-node modified node-scene" data-component="scene" type="button">
+                            <span>SCENE CLASS</span><strong>Scene</strong><small>場景根節點與光源</small>
+                        </button>
+                        <button class="component-node modified node-camera" data-component="camera" type="button">
+                            <span>SCENE CLASS</span><strong>Camera</strong><small>view + projection</small>
+                        </button>
+                        <button class="component-node modified node-renderer" data-component="renderer" type="button">
+                            <span>RENDER CLASS</span><strong>Renderer</strong><small>快取、剔除、霧與 draw call</small>
+                        </button>
+                        <button class="component-node node-webgl" data-component="webgl" type="button">
+                            <span>PLATFORM API</span><strong>WebGL 1</strong><small>GPU / GLSL / Canvas</small>
+                        </button>
+                        <button class="component-node modified node-object selected" data-component="object3d" type="button">
+                            <span>BASE CLASS</span><strong>Object3D</strong><small>所有場景節點的基底</small>
+                        </button>
+                        <button class="component-node legacy node-glscreen" data-component="glscreen" type="button">
+                            <span>LEGACY CLASS</span><strong>GLScreen</strong><small>早期 2D drawing path</small>
+                        </button>
+                        <button class="component-node legacy node-shaders" data-component="shaders" type="button">
+                            <span>LEGACY CLASS</span><strong>Shaders</strong><small>早期 program registry</small>
+                        </button>
+                    </div>
+                </div>
+
+                <aside class="component-detail" aria-live="polite">
+                    <div class="detail-index" id="detail-index">CLASS / 01</div>
+                    <div class="detail-title-row">
+                        <div>
+                            <span id="detail-type">BASE CLASS</span>
+                            <h3 id="detail-name">Object3D</h3>
+                        </div>
+                        <span class="status-badge" id="detail-status">ACTIVE</span>
+                    </div>
+                    <p class="detail-summary" id="detail-summary"></p>
+
+                    <div class="detail-block">
+                        <h4>主要責任</h4>
+                        <ul id="detail-responsibilities"></ul>
+                    </div>
+                    <div class="detail-block">
+                        <h4>重要 API / 資料</h4>
+                        <div class="api-tags" id="detail-api"></div>
+                    </div>
+                    <div class="detail-block">
+                        <h4>關係</h4>
+                        <p id="detail-relations"></p>
+                    </div>
+                    <div class="detail-block debt-block">
+                        <h4>目前注意事項</h4>
+                        <p id="detail-debt"></p>
+                    </div>
+                    <a class="source-link" id="detail-source" href="core/Object3D.js">查看原始檔 <span>↗</span></a>
+                </aside>
+            </div>
+        </section>
+
+        <section class="flow-section" aria-labelledby="flow-title">
+            <header class="section-heading">
+                <div><span>06 / FRAME LIFECYCLE</span><h2 id="flow-title">一幀畫面如何產生</h2></div>
+            </header>
+            <ol class="render-flow">
+                <li><span>01</span><div><b>LOAD</b><p><code>loadObj()</code> / <code>loadGltf()</code> 非同步取得模型與材質。</p></div></li>
+                <li><span>02</span><div><b>BUILD</b><p>建立 Entity，掛載 Transform 與 MeshRenderer。</p></div></li>
+                <li><span>03</span><div><b>COMPOSE</b><p>World 索引 Components，Camera 與 Light 也是 Entity。</p></div></li>
+                <li><span>04</span><div><b>QUERY</b><p>Renderer 查詢 Transform + MeshRenderer 並快取 GPU 資源。</p></div></li>
+                <li><span>05</span><div><b>CULL</b><p>Frustum 以 Geometry bounding sphere 排除不可見 chunk。</p></div></li>
+                <li><span>06</span><div><b>DRAW</b><p>GLSL 計算座標、光照、波浪與距離霧，輸出至 Canvas。</p></div></li>
+            </ol>
+        </section>
+
+        <section class="boundary-section" aria-labelledby="boundary-title">
+            <div class="boundary-copy">
+                <span>07 / ARCHITECTURE NOTE</span>
+                <h2 id="boundary-title">目前有兩條渲染路徑</h2>
+                <p><code>Renderer/Renderer.js</code> 是展示網站正在使用的 3D 路徑；<code>lib/screen/</code> 的 GLScreen 與 Shaders 則是早期的 2D polygon 實驗。兩者目前沒有共用資源與介面，後續應刪除舊路徑或整併成同一套抽象。</p>
+            </div>
+            <div class="boundary-status">
+                <div><i></i><span>ACTIVE</span><strong>Renderer</strong></div>
+                <div class="legacy"><i></i><span>LEGACY</span><strong>GLScreen / Shaders</strong></div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <span>FLUX 3D / ARCHITECTURE MAP</span>
+        <span>23 CLASSES · COMPONENT PRIMARY · OOP COMPATIBLE</span>
+    </footer>
+</body>
+</html>
